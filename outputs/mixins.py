@@ -342,8 +342,11 @@ class ExporterMixin(object):
     def get_message_subject(self):
         return None
 
+    def get_save_export_queryset(self):
+        return self.get_queryset().prefetch_related(None)
+
     def save_export(self):
-        items = self.get_queryset().prefetch_related(None)
+        items = self.get_save_export_queryset()
         model = self.queryset.model if self.queryset else self.model
         params = getattr(self, 'params', {})
 
