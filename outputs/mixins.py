@@ -343,7 +343,7 @@ class ExporterMixin(object):
         return None
 
     def save_export(self):
-        items = self.get_queryset()
+        items = self.get_queryset().prefetch_related(None)
         model = self.queryset.model if self.queryset else self.model
         params = getattr(self, 'params', {})
 
