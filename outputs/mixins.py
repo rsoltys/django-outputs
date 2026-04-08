@@ -342,11 +342,8 @@ class ExporterMixin(object):
     def get_message_subject(self):
         return None
 
-    def get_save_export_queryset(self):
-        return self.get_queryset().prefetch_related(None)
-
     def save_export(self):
-        items = self.get_save_export_queryset()
+        items = self.get_queryset()
         model = self.queryset.model if self.queryset else self.model
         params = getattr(self, 'params', {})
 
@@ -365,6 +362,7 @@ class ExporterMixin(object):
 
         # track export
         content_type = ContentType.objects.get_for_model(model, for_concrete_model=False)
+        total = items.count()
         export = Export.objects.create(
             content_type=content_type,
             format=self.export_format,
@@ -374,34 +372,21 @@ class ExporterMixin(object):
             fields=fields,
             creator=self.user,
             query_string=params.urlencode() if params else "",
-            total=0,
+            total=total,
             url=self.url,
             emails=[recipient.email for recipient in self.recipients]
         )
         export.recipients.add(*list(self.recipients))
 
-        # Create ExportItem entries for each item using iterator to avoid loading all into memory
         from outputs.models import ExportItem
-        total = 0
         batch = []
-        for item in items.iterator():
-            batch.append(ExportItem(
-                export=export,
-                content_type=content_type,
-                object_id=item.pk,
-                detail=str(item),
-                result='',
-            ))
-            total += 1
+        for pk in items.values_list('pk', flat=True).iterator():
+            batch.append(ExportItem(export=export, content_type=content_type, object_id=pk))
             if len(batch) >= 1000:
                 ExportItem.objects.bulk_create(batch, batch_size=1000)
                 batch = []
-
         if batch:
             ExportItem.objects.bulk_create(batch, batch_size=1000)
-
-        export.total = total
-        export.save(update_fields=['total'])
 
         return export
 
